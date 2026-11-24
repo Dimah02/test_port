@@ -28,6 +28,9 @@ DEFAULT_PHP = (8, 3)
 BASE_EXTENSIONS = [
     "mbstring", "intl", "pdo_sqlite", "sqlite3", "gd", "zip", "bcmath", "fileinfo",
     "curl", "openssl", "dom", "xml", "ctype", "tokenizer", "simplexml", "libxml", "exif",
+    # enabled by default on Ubuntu/macOS but not in setup-php's Windows PHP; often required by dependencies
+    # (e.g. lcobucci/jwt -> sodium, veewee/xml -> xsl). Without them Windows gets a different PHP than the others.
+    "sodium", "xsl", "gmp", "sockets", "iconv", "xmlreader", "xmlwriter", "calendar",
 ]
 EXT_BLOCKLIST = {"xdebug", "pcov", "json", "hash", "standard", "core", "spl", "date", "pcre", "reflection"}
 

@@ -23,3 +23,23 @@ runs used the old code. Runs are identified by their GitHub Actions run id.
 
 **Runs with the old code:** 45403055873 (smoke test only). It is not part of the study data set; the smoke test is
 rerun with the new code.
+
+## 2026-11-24 - change 2 (before the pilot; no full run in progress)
+
+**Found in:** smoke-test run 45407796200 (commit adcccf5; Ubuntu + Windows jobs only, the 3 macOS jobs stayed
+queued for ~20 min and the run was cancelled at the user's request). The new `install_attempts[].tail` showed:
+- koel/koel windows: `php-standard-library/php-standard-library 4.3.0 requires ext-sodium * -> it is missing from your
+  system` and `veewee/xml 3.7.0 requires ext-xsl * -> it is missing from your system` (`C:\tools\php\php.ini`).
+- spatie/laravel-permission windows: `lcobucci/jwt[5.1.0, ..., 5.6.x-dev] require ext-sodium * -> it is missing`.
+Ubuntu installed both repos in mode `normal`. These extensions are enabled by default in setup-php's Linux/macOS PHP
+but not on Windows, and they are *transitive* requirements, so they never appear in the repo's own `composer.json`
+(`ext_requires`). Windows therefore ran with a smaller PHP than the other OSes: a harness inequality, not a property
+of the OS.
+
+**Change**
+- `scripts/make_matrix.py`: `BASE_EXTENSIONS` += `sodium, xsl, gmp, sockets, iconv, xmlreader, xmlwriter, calendar`
+  (all available on Windows). `pcntl`/`posix` stay out: they do not exist on Windows (genuine difference).
+- `scripts/run_one.py`: records `php_modules` (output of `php -m`, lower-case) in `result.json`, so remaining
+  extension differences between the OSes can be measured instead of assumed.
+
+**Runs with the old code:** 45403055873, 45407796200 (smoke tests only, not part of the data set).

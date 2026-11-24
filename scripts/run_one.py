@@ -134,6 +134,15 @@ def php_version(php, env):
         return ""
 
 
+def php_modules(php, env):
+    """Loaded extensions (`php -m`), lower-case, so the OSes can be compared."""
+    try:
+        out = subprocess.run([php, "-m"], capture_output=True, text=True, env=env, timeout=30).stdout
+    except Exception:
+        return []
+    return sorted({ln.strip().lower() for ln in out.splitlines() if ln.strip() and not ln.startswith("[")})
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--repo", required=True)
@@ -191,6 +200,7 @@ def run_all(args, result):
     if not php or not composer:
         raise RuntimeError(f"php={php} composer={composer} not found on PATH")
     result["php_actual"] = php_version(php, env)
+    result["php_modules"] = php_modules(php, env)
     logs_dir = os.path.join(os.path.dirname(os.path.abspath(args.out)), "logs")
     r = Runner(target, logs_dir, env)
 
