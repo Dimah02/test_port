@@ -1,0 +1,141 @@
+name: portability
+
+# One job per (repository x OS). Run it from a PUBLIC repository: standard GitHub-hosted
+# runners are free there. Start it from the Actions tab ("Run workflow") or with
+# scripts/dispatch_batches.py. A matrix is limited to 256 jobs, so each run takes a batch.
+on:
+  workflow_dispatch:
+    inputs:
+      start:
+        description: "First repo of this batch (0-based, after filtering + sorting by stars)"
+        default: "0"
+      count:
+        description: "Repos per batch (repos x OSes must be <= 256, i.e. 85 for three OSes)"
+        default: "80"
+      classes:
+        description: "Classifications to test (comma-separated)"
+        default: "application,package"
+      min_stars:
+        description: "Minimum stars"
+        default: "0"
+      oses:
+        description: "Runner labels (comma-separated)"
+        default: "ubuntu-24.04,windows-2025,macos-15"
+      only:
+        description: "Smoke test: comma-separated owner/repo list (ignores the filters above)"
+        default: ""
+      only_file:
+        description: "Repo list file in this repository, e.g. lists/stage2.txt (ignores the filters above)"
+        default: ""
+      frontend:
+        description: "Also run npm ci + npm run build before the tests"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read   # nothing else: the jobs execute third-party code
+
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.m.outputs.matrix }}
+      n: ${{ steps.m.outputs.n }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: m
+        env:
+          START: ${{ inputs.start }}
+          COUNT: ${{ inputs.count }}
+          CLASSES: ${{ inputs.classes }}
+          MIN_STARS: ${{ inputs.min_stars }}
+          OSES: ${{ inputs.oses }}
+          ONLY: ${{ inputs.only }}
+          ONLY_FILE: ${{ inputs.only_file }}
+        run: |
+          python3 scripts/make_matrix.py repos_verified.csv \
+            --start "$START" --count "$COUNT" --classes "$CLASSES" --min-stars "$MIN_STARS" \
+            --oses "$OSES" --only "$ONLY" --only-file "$ONLY_FILE" \
+            --github-output "$GITHUB_OUTPUT"
+
+  test:
+    needs: prepare
+    if: needs.prepare.outputs.n != '0'
+    name: ${{ matrix.repo }} (${{ matrix.os_name }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
+    defaults:
+      run:
+        shell: bash   # same shell syntax on all three OSes (Git Bash on Windows)
+    steps:
+      - name: Windows - allow long paths
+        if: runner.os == 'Windows'
+        run: git config --system core.longpaths true
+
+      - name: Check out this repository (scripts)
+        uses: actions/checkout@v4
+        with:
+          path: study
+
+      - name: Check out the project under test
+        id: target
+        continue-on-error: true      # deleted / renamed / private repos are recorded, not fatal
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ matrix.repo }}
+          path: target
+          fetch-depth: 1
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up PHP ${{ matrix.php }}
+        id: php
+        if: steps.target.outcome == 'success'
+        continue-on-error: true
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: ${{ matrix.extensions }}
+          tools: composer:v2
+          coverage: none
+
+      - name: Set up Node
+        if: inputs.frontend && steps.target.outcome == 'success'
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Install and test
+        env:
+          REPO: ${{ matrix.repo }}
+          OS_NAME: ${{ matrix.os_name }}
+          PHP_REQ: ${{ matrix.php }}
+          PHP_REASON: ${{ matrix.php_reason }}
+          CLASSIFICATION: ${{ matrix.classification }}
+          CHECKOUT_OUTCOME: ${{ steps.target.outcome }}
+          PHP_OUTCOME: ${{ steps.php.outcome }}
+          FRONTEND: ${{ inputs.frontend }}
+        run: |
+          mkdir -p out
+          EXTRA=""
+          if [ "$FRONTEND" = "true" ]; then EXTRA="--frontend"; fi
+          python study/scripts/run_one.py \
+            --repo "$REPO" --target target --out out/result.json \
+            --os-name "$OS_NAME" --php-requested "$PHP_REQ" --php-reason "$PHP_REASON" \
+            --classification "$CLASSIFICATION" \
+            --checkout-outcome "$CHECKOUT_OUTCOME" --php-setup-outcome "$PHP_OUTCOME" $EXTRA
+
+      - name: Upload result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: result-${{ matrix.os_name }}-${{ matrix.slug }}
+          path: out/result.json
+          retention-days: 30
+          if-no-files-found: warn
