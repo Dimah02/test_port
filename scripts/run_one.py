@@ -197,14 +197,20 @@ def run_all(args, result):
     # ---- install (with fallbacks, so the *reason* for trouble is recorded) -------------------
     result["stage_reached"] = "install"
     base = [composer, "install", "--no-interaction", "--no-progress", "--prefer-dist"]
+    # ignore_ext: ignore missing PHP extensions (e.g. pcntl/posix on Windows) but keep the PHP version
+    # constraint, so a project without composer.lock does not get dependencies for a newer PHP.
     ladder = [("normal", base), ("no_scripts", base + ["--no-scripts"]),
+              ("ignore_ext", base + ["--no-scripts", "--ignore-platform-req=ext-*"]),
               ("ignore_platform", base + ["--no-scripts", "--ignore-platform-reqs"])]
     result["install_attempts"] = []
     install_secs = 0.0
     for mode, cmd in ladder:
         info = r.run(f"composer_{mode}", cmd, args.install_timeout)
         install_secs += info["secs"]
-        result["install_attempts"].append({"mode": mode, "rc": info["rc"]})
+        attempt = {"mode": mode, "rc": info["rc"]}
+        if info["rc"] != 0:
+            attempt["tail"] = info["tail"][-3000:]  # why this attempt failed, even if a later one succeeds
+        result["install_attempts"].append(attempt)
         if info["rc"] == 0:
             result["install_mode"] = mode
             break

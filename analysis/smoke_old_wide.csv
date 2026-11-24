@@ -1,0 +1,4 @@
+repo,classification,php_requested,portability_verdict,ubuntu_outcome,ubuntu_tests,ubuntu_failures_errors,windows_outcome,windows_tests,windows_failures_errors,macos_outcome,macos_tests,macos_failures_errors,failed_only_on
+koel/koel,application,8.3,not comparable (suite did not run on: windows=runner_crashed),passed,2635,0,runner_crashed,,,passed,2635,0,
+soheilkhaledabdi/shop-admin-panel,application,8.1,identical (same failures everywhere),tests_failed,4,3,tests_failed,4,3,tests_failed,4,3,
+spatie/laravel-permission,package,8.3,not comparable (suite did not run on: windows=runner_crashed),passed,761,0,runner_crashed,,,passed,761,0,

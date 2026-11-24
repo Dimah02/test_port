@@ -77,7 +77,8 @@ tests run: `result.json` has `tests` and `only_example_tests`, so filter those o
 ## What the workflow does per job
 
 checkout target -> `setup-php` (version below) -> `composer install` (falls back to `--no-scripts`, then
-`--ignore-platform-reqs`; the mode used is recorded in `install_mode`) -> copy `.env.example` -> random `APP_KEY` ->
+`--ignore-platform-req=ext-*` (`ignore_ext`), then `--ignore-platform-reqs`; the mode used is recorded in
+`install_mode`, the output tail of every failed attempt in `install_attempts[].tail`) -> copy `.env.example` -> random `APP_KEY` ->
 tests with `--log-junit`. Tests run with `DB_CONNECTION=sqlite`, `DB_DATABASE=:memory:`, array cache/session,
 sync queue, array mailer. Optional `-f frontend=true` also runs `npm ci && npm run build`.
 
