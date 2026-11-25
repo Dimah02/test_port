@@ -3,3 +3,4 @@ jobs_*.json
 __pycache__/
 logs/
 results_excluded/
+.env
